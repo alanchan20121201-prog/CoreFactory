@@ -1,0 +1,58 @@
+{
+  "beltSpeed": 1.2,
+  "minerSeconds": 1.0,
+  "solarPower": 60,
+  "thermalPower": 220,
+  "batteryCapacity": 6000,
+  "turretRange": 10,
+  "turretInterval": 0.55,
+  "turretDamage": 12,
+
+  "recipes": {
+    "smelter": [
+      { "in": "IronOre", "n": 1, "out": "IronPlate", "nout": 1, "sec": 1.8 },
+      { "in": "CopperOre", "n": 1, "out": "CopperPlate", "nout": 1, "sec": 1.8 },
+      { "in": "TitaniumOre", "n": 1, "out": "TitaniumPlate", "nout": 1, "sec": 2.5 },
+      { "in": "SiliconOre", "n": 1, "out": "SiliconWafer", "nout": 1, "sec": 2.2 },
+      { "in": "CrystalOre", "n": 1, "out": "Crystal", "nout": 1, "sec": 2.6 },
+      { "in": "GoldOre", "n": 1, "out": "GoldPlate", "nout": 1, "sec": 3.0 },
+      { "in": "CoreOre", "n": 1, "out": "CoreCrystal", "nout": 1, "sec": 4.0 }
+    ],
+    "assembler": [
+      { "in": "IronPlate", "n": 3, "out": "Gear", "nout": 1, "sec": 1.6 },
+      { "in": "CopperPlate", "n": 2, "out": "Circuit", "nout": 1, "sec": 2.0 },
+      { "in": "Gear", "n": 1, "in2": "CopperPlate", "n2": 1, "out": "Ammo", "nout": 2, "sec": 2.0 },
+      { "in": "Gear", "n": 1, "in2": "Circuit", "n2": 1, "out": "Science", "nout": 1, "sec": 4.0 },
+      { "in": "Circuit", "n": 1, "in2": "SiliconWafer", "n2": 1, "out": "AdvancedCircuit", "nout": 1, "sec": 3.2 },
+      { "in": "Ammo", "n": 1, "in2": "Crystal", "n2": 1, "out": "HeavyAmmo", "nout": 2, "sec": 2.8 }
+    ]
+  },
+
+  "costs": {
+    "Belt": [["IronPlate", 1]],
+    "Miner": [["IronPlate", 10], ["Gear", 5]],
+    "Smelter": [["IronPlate", 12], ["Gear", 4]],
+    "Assembler": [["IronPlate", 10], ["Gear", 8], ["Circuit", 4]],
+    "Depot": [["IronPlate", 20]],
+    "SolarPanel": [["CopperPlate", 12], ["Circuit", 6]],
+    "ThermalGenerator": [["IronPlate", 20], ["Gear", 10]],
+    "Battery": [["CopperPlate", 20], ["Circuit", 10]],
+    "Turret": [["IronPlate", 25], ["Gear", 10]],
+    "Lamp": [["CopperPlate", 2]],
+    "SensorNode": [["CopperPlate", 5], ["Circuit", 2]],
+    "ComparatorNode": [["CopperPlate", 5], ["Circuit", 4]],
+    "ActuatorNode": [["CopperPlate", 5], ["Circuit", 4]]
+  },
+
+  "powerDemand": {
+    "Miner": 30,
+    "Smelter": 70,
+    "Assembler": 50,
+    "Turret": 25,
+    "Lamp": 5,
+    "Depot": 5,
+    "SensorNode": 2,
+    "ComparatorNode": 2,
+    "ActuatorNode": 2
+  }
+}

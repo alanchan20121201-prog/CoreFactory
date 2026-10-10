@@ -1,0 +1,14 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>CoreFactory</RootNamespace>
+    <AssemblyName>CoreFactory2D</AssemblyName>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- 模擬核心自帶在本專案的 src/Core/（純 C#、零引擎依賴）。
+         Godot.NET.Sdk 會自動收進專案下所有 .cs，這裡只是註記，不需額外 Include。 -->
+  </ItemGroup>
+</Project>

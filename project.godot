@@ -1,0 +1,34 @@
+; Core Factory: Infinite Horizon（2D 版）—— Godot 4.7 Mono 專案設定
+; 由 3D 版（game/）降維重構；模擬核心直接連結 ../game/src/Core（見 CoreFactory2D.csproj）
+; 渲染器沿用 3D 版的決定（Mobile，輕薄本更省），2D 內容不受影響
+
+config_version=5
+
+[application]
+
+config/name="Core Factory: Infinite Horizon 2D"
+config/version="0.2.0"
+config/description="2D top-down tile-based alien factory automation (dimension-reduced from the 3D version)"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.7", "C#", "Mobile")
+config/icon="res://art/icon.png"
+boot_splash/show_image=false
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+
+[dotnet]
+
+project/assembly_name="CoreFactory2D"
+
+[physics]
+
+common/physics_ticks_per_second=60
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
