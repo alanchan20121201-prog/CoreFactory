@@ -9,10 +9,6 @@
 
 ![深渊零号](docs/screenshots/planet-nyx0.png)
 
-## 当前版本
-
-**`v0.2.0`** —— 五星球版本。版本命名规则见 [`docs/VERSIONING.md`](docs/VERSIONING.md)。
-
 ## 玩法闭环
 
 - **采集与物流**：采矿机开采铁/铜/煤/石（灰烬星还有稀有钛矿）→ 传送带网络输送。
@@ -32,11 +28,6 @@
 - **无限地图**：区块式地形串流，视口外自动加载/卸载（坐标上限 ±32760）。
 - **中文 UI**：图鉴、新手教学、信息栏、小地图、研究、交易、设置、存读档、主菜单、失败画面。
 - **可扩展架构**：模拟核心（`game2d/src/Core/`）是纯 C#、零引擎依赖，可单独编译、可压测、可移植。
-
-## 下载 / 试玩
-
-- 最新发行版：见 [Releases](../../releases) 或仓库根目录 `dist/`。
-- 直接运行 `CoreFactory2D_v0.2.0.exe`。
 
 ## 操作
 
@@ -85,7 +76,7 @@ Godot_v4.7.2-stable_mono_win64_console.exe --headless --path game2d \
 ## 项目结构
 
 ```
-├── game2d/         # ★ 游戏本体（2D 版，v0.2.0，唯一版本）
+├── game2d/         # ★ 游戏本体
 │   ├── src/Core/   #   纯 C# 模拟核心（零引擎依赖，可单独编译/压测）
 │   └── src/View2D/ #   渲染、UI、音效、教学、存档
 ├── tools/Bench/    # 基准压测（直接链接 src/Core）
@@ -96,8 +87,6 @@ Godot_v4.7.2-stable_mono_win64_console.exe --headless --path game2d \
 ├── VERSION         # 当前版本号
 └── LICENSE         # MIT
 ```
-
-> 原 3D 版（`game/`）已于 v0.2.0 从仓库移除；相关原始档封存于仓库外，未删除。
 
 ## 路线图
 
