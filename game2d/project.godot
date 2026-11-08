@@ -1,0 +1,33 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="Core Factory: Infinite Horizon 2D"
+config/description="2D top-down tile-based alien factory automation (dimension-reduced from the 3D version)"
+config/version="0.3.0"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.7", "C#", "Mobile")
+boot_splash/show_image=false
+config/icon="res://art/icon.png"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+
+[dotnet]
+
+project/assembly_name="CoreFactory2D"
+
+[rendering]
+
+renderer/rendering_method="mobile"

@@ -1,0 +1,53 @@
+name: Build Windows EXE
+
+# 打上 v* 標籤就自動打包並發佈到 Releases；也可以手動觸發。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: 下載 Godot 4.7.2 (.NET) 與匯出模板
+        run: |
+          set -e
+          BASE=https://github.com/godotengine/godot/releases/download/4.7.2-stable
+          wget -q $BASE/Godot_v4.7.2-stable_mono_linux_x86_64.zip
+          unzip -q Godot_v4.7.2-stable_mono_linux_x86_64.zip
+          wget -q $BASE/Godot_v4.7.2-stable_mono_export_templates.tpz
+          mkdir -p ~/.local/share/godot/export_templates/4.7.2.stable.mono
+          unzip -q Godot_v4.7.2-stable_mono_export_templates.tpz -d tpl
+          mv tpl/templates/* ~/.local/share/godot/export_templates/4.7.2.stable.mono/
+
+      - name: 匯入資源並匯出 EXE
+        run: |
+          set -e
+          GODOT=./Godot_v4.7.2-stable_mono_linux_x86_64/Godot_v4.7.2-stable_mono_linux.x86_64
+          mkdir -p build
+          $GODOT --headless --path game --import
+          $GODOT --headless --path game --export-release "Windows Desktop" "$PWD/build/CoreFactory.exe"
+
+      - name: 上傳建置產物
+        uses: actions/upload-artifact@v4
+        with:
+          name: CoreFactory-windows
+          path: |
+            build/CoreFactory.exe
+            build/data_CoreFactory_windows_x86_64/**
+
+      - name: 發佈到 Release（僅標籤觸發）
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/CoreFactory.exe
+            build/data_CoreFactory_windows_x86_64/**
+          generate_release_notes: true
