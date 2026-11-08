@@ -31,8 +31,10 @@ jobs:
         run: |
           set -e
           GODOT=./Godot_v4.7.2-stable_mono_linux_x86_64/Godot_v4.7.2-stable_mono_linux.x86_64
+          # nuget.config 含開發機本機離線源（絕對路徑），CI 上移除以免 restore 失敗
+          dotnet nuget remove source GodotOffline --configfile game2d/nuget.config
           $GODOT --headless --path game2d --import
-          dotnet build game2d/CoreFactory2D.csproj -c ExportRelease
+          dotnet build game2d/CoreFactory2D.csproj -c ExportRelease -p:RestoreIgnoreFailedSources=true
           mkdir -p build
           $GODOT --headless --path game2d --export-release "Windows Desktop" "$PWD/build/CoreFactory2D.exe"
 
