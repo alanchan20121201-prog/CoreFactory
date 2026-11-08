@@ -176,7 +176,7 @@ namespace CoreFactory.View2D
                 var p = new Vector2(bx, bz);
                 var inner = new Rect2(bx + 2.5f, bz + 2.5f, TS - 5f, TS - 5f);
 
-                Art2D.DrawBuilding(layer, p, b);
+                Art2D.DrawBuilding(layer, p, b, _world.Elapsed);
                 if (!b.Enabled) layer.DrawRect(inner, Palette2D.DisabledVeil);
 
                 Vector2 dir = GridCoord.DirVec(b.Facing);

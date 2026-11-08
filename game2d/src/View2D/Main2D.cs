@@ -457,6 +457,9 @@ namespace CoreFactory.View2D
                 case Key.V: PasteBlueprint(); break;
                 case Key.G: _ui.ToggleSell(); break;
                 case Key.Y: _ui.ToggleLive(); break;
+                case Key.J: _ui.ToggleAch(); break;
+                case Key.T: _ui.ToggleTech(); break;
+                case Key.K: _ui.TogglePortal(); break;
                 case Key.P: _ui.TogglePlanet(); break;
                 case Key.F5: SaveGame(); break;
                 case Key.M: _ui.ToggleMinimap(); break;

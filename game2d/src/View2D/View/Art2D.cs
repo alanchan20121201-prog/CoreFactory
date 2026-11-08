@@ -148,7 +148,7 @@ namespace CoreFactory.View2D
         }
 
         // ── 建築（origin = 格子左上角，chunk 局部座標）────────────
-        public static void DrawBuilding(CanvasItem ci, Vector2 origin, Building b)
+        public static void DrawBuilding(CanvasItem ci, Vector2 origin, Building b, float time = 0f)
         {
             var kind = b.Kind;
             var main = Palette2D.Building(kind);
@@ -158,6 +158,7 @@ namespace CoreFactory.View2D
             var body = new Rect2(origin.X + 2.5f, origin.Y + 2.5f, TS - 5f, TS - 5f);
             Vector2 c = origin + new Vector2(TS * 0.5f, TS * 0.5f);
             Vector2 dir = GridCoord.DirVec(b.Facing);
+            float anim = time + (b.X * 13.7f + b.Z * 7.3f);
 
             // 底座（略微外擴的暗色襯墊，讓建築「浮」在地面上）
             ci.DrawRect(new Rect2(origin.X + 1f, origin.Y + 1f, TS - 2f, TS - 2f), new Color(0f, 0f, 0f, 0.35f));
@@ -166,32 +167,44 @@ namespace CoreFactory.View2D
             {
                 case BuildingKind.Miner:
                     Panel(ci, body, main, Palette2D.BuildingEdge, acc, dark);
-                    // 鑽頭（朝向 facing）
+                    float spin = b.Producing ? anim * 6f : 0f;
                     Vector2 tip = c + dir * TS * 0.30f;
                     Vector2 side = new(-dir.Y, dir.X);
+                    tip += side * (Mathf.Sin(spin) * 2f);
                     ci.DrawColoredPolygon(new[] { tip, c + side * 5f - dir * 3f, c - side * 5f - dir * 3f }, glyph);
                     ci.DrawCircle(c, 3.5f, Palette2D.Item((ItemId)b.KindValue));
+                    if (b.Producing && ((int)(anim * 10f) % 3) == 0)
+                    {
+                        var spark = c + dir * TS * 0.35f + side * Mathf.Sin(anim * 20f) * 3f;
+                        ci.DrawCircle(spark, 1.5f, new Color(1f, 0.9f, 0.4f, 0.8f));
+                    }
                     break;
 
                 case BuildingKind.Smelter:
                     Panel(ci, body, main, Palette2D.BuildingEdge, acc, dark);
-                    // 爐口（暗窗）+ 火焰
                     ci.DrawRect(new Rect2(c.X - 6f, c.Y - 1f, 12f, 9f), dark);
-                    ci.DrawColoredPolygon(new[] { c + new Vector2(-4f, 6f), c + new Vector2(4f, 6f), c + new Vector2(0, -3f) }, new Color("ff7a30"));
-                    ci.DrawColoredPolygon(new[] { c + new Vector2(-2f, 6f), c + new Vector2(2f, 6f), c + new Vector2(0, 0.5f) }, glyph);
+                    float flameH = 3f + Mathf.Sin(anim * 5f) * 1.5f + (b.Producing ? 2f : 0f);
+                    float flameW = 4f + Mathf.Sin(anim * 7f + 1f) * 0.8f;
+                    ci.DrawColoredPolygon(new[] { c + new Vector2(-flameW, 6f), c + new Vector2(flameW, 6f), c + new Vector2(0, -flameH) }, new Color("ff7a30"));
+                    float innerH = flameH * 0.5f;
+                    ci.DrawColoredPolygon(new[] { c + new Vector2(-2f, 6f), c + new Vector2(2f, 6f), c + new Vector2(0, 6f - innerH) }, glyph);
+                    if (b.Producing)
+                        ci.DrawCircle(c + new Vector2(0, 3f), 8f + Mathf.Sin(anim * 4f) * 2f, new Color(1f, 0.5f, 0.1f, 0.12f));
                     break;
 
                 case BuildingKind.Assembler:
                     Panel(ci, body, main, Palette2D.BuildingEdge, acc, dark);
-                    // 齒輪圖標
+                    float gearRot = b.Producing ? anim * 2.5f : 0f;
                     for (int i = 0; i < 6; i++)
                     {
-                        float a = i * Mathf.Tau / 6f;
+                        float a = i * Mathf.Tau / 6f + gearRot;
                         var d = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
                         ci.DrawRect(new Rect2(c + d * 6f - new Vector2(1.6f, 1.6f), new Vector2(3.2f, 3.2f)), glyph);
                     }
                     ci.DrawCircle(c, 5f, glyph);
                     ci.DrawCircle(c, 2f, dark);
+                    if (b.Producing && ((int)(anim * 3f) % 2) == 0)
+                        ci.DrawCircle(c + new Vector2(0, -10f), 2f, new Color(0.3f, 1f, 0.4f, 0.9f));
                     break;
 
                 case BuildingKind.Depot:
@@ -204,42 +217,63 @@ namespace CoreFactory.View2D
 
                 case BuildingKind.SolarPanel:
                     Panel(ci, body, main, Palette2D.BuildingEdge, acc, dark);
-                    // 2×2 電池陣列 + 高光斜線
                     for (int ix = 0; ix < 2; ix++)
                         for (int iy = 0; iy < 2; iy++)
                             ci.DrawRect(new Rect2(origin.X + 6f + ix * 11f, origin.Y + 6f + iy * 11f, 9f, 9f), new Color("3f7cc8"));
-                    ci.DrawLine(origin + new Vector2(7f, 7f), origin + new Vector2(TS - 7f, TS - 7f), new Color(0.6f, 0.9f, 1f, 0.8f), 1.6f);
+                    // 高光流動
+                    float shimmer = Mathf.Sin(anim * 2f) * 0.2f;
+                    ci.DrawLine(origin + new Vector2(7f, 7f), origin + new Vector2(TS - 7f, TS - 7f), new Color(0.6f, 0.9f, 1f, 0.6f + shimmer), 1.6f);
                     break;
 
                 case BuildingKind.ThermalGenerator:
                     Panel(ci, body, main, Palette2D.BuildingEdge, acc, dark);
-                    // 煙囪 + 燃燒核心
                     ci.DrawRect(new Rect2(c.X - 2f, origin.Y + 4f, 4f, 8f), dark);
                     ci.DrawCircle(c + new Vector2(0, 3f), 5f, dark);
-                    ci.DrawCircle(c + new Vector2(0, 3f), 3f, glyph);
+                    float burnGlow = 0.7f + Mathf.Sin(anim * 6f) * 0.3f;
+                    ci.DrawCircle(c + new Vector2(0, 3f), 3f * burnGlow, glyph);
+                    if (b.Enabled)
+                    {
+                        // 煙囪冒煙（3 顆上升的煙粒子）
+                        for (int si = 0; si < 3; si++)
+                        {
+                            float t2 = (anim * 0.8f + si * 0.33f) % 1f;
+                            float sy = origin.Y + 4f - t2 * 10f;
+                            float sx = c.X + Mathf.Sin(anim * 2f + si) * 2f;
+                            float alpha = (1f - t2) * 0.35f;
+                            ci.DrawCircle(new Vector2(sx, sy), 1.5f + t2 * 1.5f, new Color(0.6f, 0.6f, 0.6f, alpha));
+                        }
+                    }
                     break;
 
                 case BuildingKind.Battery:
                     Panel(ci, body, main, Palette2D.BuildingEdge, acc, dark);
-                    // 電池端子 + 閃電
                     ci.DrawRect(new Rect2(c.X - 3f, origin.Y + 3f, 6f, 3f), glyph);
-                    ci.DrawColoredPolygon(new[] { c + new Vector2(1f, -5f), c + new Vector2(-2f, 1f), c + new Vector2(0.5f, 1f), c + new Vector2(-1f, 5f), c + new Vector2(2f, -1f), c + new Vector2(-0.5f, -1f) }, glyph);
+                    float boltAlpha = 0.5f + Mathf.Sin(anim * 8f) * 0.5f;
+                    var boltColor = new Color(0.6f, 0.9f, 1f, boltAlpha);
+                    ci.DrawColoredPolygon(new[] { c + new Vector2(1f, -5f), c + new Vector2(-2f, 1f), c + new Vector2(0.5f, 1f), c + new Vector2(-1f, 5f), c + new Vector2(2f, -1f), c + new Vector2(-0.5f, -1f) }, boltColor);
+                    ci.DrawCircle(c, 7f + Mathf.Sin(anim * 8f) * 1.5f, new Color(0.4f, 0.7f, 1f, 0.1f));
                     break;
 
                 case BuildingKind.Turret:
                     Panel(ci, body, main, Palette2D.BuildingEdge, acc, dark);
-                    // 砲座 + 砲管（朝 facing）
                     ci.DrawCircle(c, 7f, dark);
-                    Vector2 btip = c + dir * 11f;
+                    // 砲管後座力動畫（射擊時）
+                    float recoil = b.Cooldown > 0f ? Mathf.Sin(b.Cooldown * 30f) * 1.5f : 0f;
+                    Vector2 btip = c + dir * (11f - recoil);
                     ci.DrawRect(new Rect2(c.X - 2.5f, c.Y - 2.5f, 5f, 5f), glyph);
                     ci.DrawLine(c, btip, glyph, 4f);
+                    // 瞄準紅點
+                    if (b.Enabled)
+                        ci.DrawCircle(btip, 1.5f, new Color(1f, 0.3f, 0.2f, 0.8f));
                     break;
 
                 case BuildingKind.Lamp:
                     Panel(ci, body, main, Palette2D.BuildingEdge, acc, dark);
-                    // 燈泡 + 光暈
-                    ci.DrawCircle(c + new Vector2(0, -2f), 6f, glyph);
+                    // 燈泡 + 呼吸光暈
+                    float lampGlow = 0.8f + Mathf.Sin(anim * 1.5f) * 0.2f;
+                    ci.DrawCircle(c + new Vector2(0, -2f), 6f * lampGlow, glyph);
                     ci.DrawCircle(c + new Vector2(0, -2f), 3f, new Color(1f, 1f, 0.95f));
+                    ci.DrawCircle(c + new Vector2(0, -2f), 12f * lampGlow, new Color(1f, 1f, 0.8f, 0.08f));
                     break;
 
                 case BuildingKind.SensorNode:

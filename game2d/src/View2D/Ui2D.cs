@@ -58,6 +58,19 @@ namespace CoreFactory.View2D
         private VBoxContainer _planetList;
         private PanelContainer _defeatPanel;
         private Minimap2D _minimap;
+        // 成就 / 科技樹 / 跨星球傳送門
+        private PanelContainer _achPanel;
+        private VBoxContainer _achBox;
+        private Label _achProgressLabel;
+        private readonly List<(Label name, Label desc, Label prog)> _achRows = new();
+        private PanelContainer _techPanel;
+        private VBoxContainer _techBox;
+        private PanelContainer _portalPanel;
+        private VBoxContainer _portalBox;
+        private OptionButton _portalPlanetBtn;
+        private OptionButton _portalItemBtn;
+        private SpinBox _portalCountSpin;
+        private float _achTimer;
         private GridContainer _toolbar;
         private Label _selectionLabel;
         private Label _objectiveLabel;
@@ -169,6 +182,9 @@ namespace CoreFactory.View2D
             BuildMinimap();
             BuildSellPanel();
             BuildLivePanel();
+            BuildAchPanel();
+            BuildTechPanel();
+            BuildPortalPanel();
             BuildPlanetPanel();
             BuildWavePanel();
             BuildTitleMenu();
@@ -734,6 +750,266 @@ namespace CoreFactory.View2D
         }
 
         // ── 市場 / 委託 / 世界事件（中期節奏）────────────────────
+        // ── 成就面板（J 鍵）────────────────────────────────────
+        private void BuildAchPanel()
+        {
+            _achPanel = new PanelContainer();
+            _achPanel.AddThemeStyleboxOverride("panel", Fonts2D.PanelStyle(new Color(0.06f, 0.06f, 0.10f, 0.96f), new Color(1f, 0.8f, 0.3f, 0.4f)));
+            _achPanel.AnchorLeft = 0.5f; _achPanel.AnchorRight = 0.5f;
+            _achPanel.AnchorTop = 0.5f; _achPanel.AnchorBottom = 0.5f;
+            _achPanel.OffsetLeft = -320f; _achPanel.OffsetRight = 320f;
+            _achPanel.OffsetTop = -300f; _achPanel.OffsetBottom = 300f;
+            _achPanel.Visible = false;
+            _root.AddChild(_achPanel);
+
+            var scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+            _achPanel.AddChild(scroll);
+            _achBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.Fill };
+            _achBox.AddThemeConstantOverride("separation", 4);
+            scroll.AddChild(_achBox);
+        }
+
+        private void RefreshAchPanel()
+        {
+            if (_achBox == null || _world == null) return;
+            for (int i = _achBox.GetChildCount() - 1; i >= 0; i--)
+                _achBox.GetChild(i).QueueFree();
+            _achRows.Clear();
+
+            _achBox.AddChild(Fonts2D.Label(Loc.T("ui.ach.title"), 16, new Color(1f, 0.85f, 0.4f)));
+            _achProgressLabel = Fonts2D.Label("", 13, new Color(0.8f, 0.85f, 0.9f));
+            _achBox.AddChild(_achProgressLabel);
+            _achBox.AddChild(new HSeparator());
+
+            for (int i = 0; i < Achievements.All.Length; i++)
+            {
+                var a = Achievements.All[i];
+                bool done = _world.IsAchUnlocked(i);
+                int cur = Math.Min(a.Progress(_world), a.Target);
+
+                var row = new HBoxContainer();
+                row.AddThemeConstantOverride("separation", 6);
+                var name = Fonts2D.Label(Loc.T(a.NameKey), 13, done ? new Color(1f, 0.85f, 0.4f) : new Color(0.6f, 0.65f, 0.7f));
+                name.CustomMinimumSize = new Vector2(160, 0);
+                row.AddChild(name);
+                var desc = Fonts2D.Label(Loc.T(a.DescKey), 11, new Color(0.7f, 0.75f, 0.8f));
+                desc.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+                desc.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+                row.AddChild(desc);
+                var prog = Fonts2D.Label(cur + "/" + a.Target, 11, done ? new Color(0.5f, 1f, 0.5f) : new Color(0.8f, 0.8f, 0.8f));
+                prog.CustomMinimumSize = new Vector2(70, 0);
+                prog.HorizontalAlignment = HorizontalAlignment.Right;
+                row.AddChild(prog);
+                _achBox.AddChild(row);
+                _achRows.Add((name, desc, prog));
+            }
+
+            _achTimer = 0f;
+            UpdateAchValues(0f);
+        }
+
+        private void UpdateAchValues(float dt)
+        {
+            if (_world == null || _achPanel == null || !_achPanel.Visible) return;
+            _achTimer -= dt;
+            if (_achTimer > 0f) return;
+            _achTimer = 0.25f;
+
+            int unlocked = _world.AchUnlockedCount;
+            if (_achProgressLabel != null)
+                _achProgressLabel.Text = string.Format(Loc.T("ui.ach.progress"), unlocked, Achievements.Count);
+
+            for (int i = 0; i < _achRows.Count && i < Achievements.All.Length; i++)
+            {
+                var a = Achievements.All[i];
+                bool done = _world.IsAchUnlocked(i);
+                int cur = Math.Min(a.Progress(_world), a.Target);
+                var row = _achRows[i];
+                row.prog.Text = cur + "/" + a.Target;
+                row.prog.AddThemeColorOverride("font_color", done ? new Color(0.5f, 1f, 0.5f) : new Color(0.8f, 0.8f, 0.8f));
+                row.name.AddThemeColorOverride("font_color", done ? new Color(1f, 0.85f, 0.4f) : new Color(0.6f, 0.65f, 0.7f));
+            }
+        }
+
+        // ── 科技樹面板（T 鍵）──────────────────────────────────
+        private void BuildTechPanel()
+        {
+            _techPanel = new PanelContainer();
+            _techPanel.AddThemeStyleboxOverride("panel", Fonts2D.PanelStyle(new Color(0.05f, 0.08f, 0.12f, 0.96f), new Color(0.4f, 0.7f, 1f, 0.4f)));
+            _techPanel.AnchorLeft = 0.5f; _techPanel.AnchorRight = 0.5f;
+            _techPanel.AnchorTop = 0.5f; _techPanel.AnchorBottom = 0.5f;
+            _techPanel.OffsetLeft = -340f; _techPanel.OffsetRight = 340f;
+            _techPanel.OffsetTop = -280f; _techPanel.OffsetBottom = 280f;
+            _techPanel.Visible = false;
+            _root.AddChild(_techPanel);
+
+            var scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+            _techPanel.AddChild(scroll);
+            _techBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.Fill };
+            _techBox.AddThemeConstantOverride("separation", 6);
+            scroll.AddChild(_techBox);
+        }
+
+        private void RefreshTechPanel()
+        {
+            if (_techBox == null || _world == null) return;
+            for (int i = _techBox.GetChildCount() - 1; i >= 0; i--)
+                _techBox.GetChild(i).QueueFree();
+
+            _techBox.AddChild(Fonts2D.Label(Loc.T("ui.tech.title"), 16, new Color(0.5f, 0.8f, 1f)));
+            _techBox.AddChild(new HSeparator());
+
+            string[] lineNames = { "Belt", "Machine", "Mining", "Power" };
+            Color[] lineColors = {
+                new Color(0.4f, 0.9f, 0.6f), new Color(1f, 0.6f, 0.4f),
+                new Color(1f, 0.85f, 0.3f), new Color(0.5f, 0.7f, 1f),
+            };
+
+            for (int line = 0; line < 4; line++)
+            {
+                _techBox.AddChild(Fonts2D.Label(lineNames[line], 14, lineColors[line]));
+
+                var grid = new GridContainer { Columns = 5 };
+                grid.AddThemeConstantOverride("h_separation", 8);
+                grid.AddThemeConstantOverride("v_separation", 4);
+
+                for (int tier = 0; tier < 5; tier++)
+                {
+                    int nodeId = line * 5 + tier;
+                    var node = TechTree.Nodes[nodeId];
+                    bool unlocked = _world.IsTechUnlocked(nodeId);
+                    bool canUnlock = !unlocked
+                        && _world.Research[line] >= node.RequireLevel
+                        && _world.Hub[(int)ItemId.Science] >= node.CostScience;
+
+                    var vbox = new VBoxContainer();
+                    vbox.CustomMinimumSize = new Vector2(110, 60);
+
+                    var btn = new Button();
+                    btn.Text = unlocked ? "OK " + Loc.T(node.NameKey) : Loc.T(node.NameKey);
+                    btn.CustomMinimumSize = new Vector2(110, 36);
+                    btn.AddThemeFontSizeOverride("font_size", 11);
+                    btn.AddThemeColorOverride("font_color",
+                        unlocked ? new Color(0.5f, 1f, 0.5f) :
+                        canUnlock ? new Color(0.4f, 0.8f, 1f) : new Color(0.5f, 0.55f, 0.6f));
+                    if (!unlocked)
+                    {
+                        int id = nodeId;
+                        btn.Pressed += () =>
+                        {
+                            if (TechTree.TryUnlock(_world, id, out _))
+                            {
+                                PlaySfx?.Invoke("research");
+                                RefreshTechPanel();
+                            }
+                            else Toast(Loc.T("tech.need_science"));
+                        };
+                    }
+                    else btn.Disabled = true;
+
+                    vbox.AddChild(btn);
+                    var cost = Fonts2D.Label(unlocked ? Loc.T("ui.tech.unlocked") : node.CostScience + " sci", 9, new Color(0.65f, 0.7f, 0.75f));
+                    vbox.AddChild(cost);
+                    grid.AddChild(vbox);
+                }
+                _techBox.AddChild(grid);
+            }
+        }
+
+        // ── 跨星球傳送門面板（K 鍵）────────────────────────────
+        private void BuildPortalPanel()
+        {
+            _portalPanel = new PanelContainer();
+            _portalPanel.AddThemeStyleboxOverride("panel", Fonts2D.PanelStyle(new Color(0.08f, 0.05f, 0.12f, 0.96f), new Color(0.8f, 0.4f, 1f, 0.4f)));
+            _portalPanel.AnchorLeft = 0.5f; _portalPanel.AnchorRight = 0.5f;
+            _portalPanel.AnchorTop = 0.5f; _portalPanel.AnchorBottom = 0.5f;
+            _portalPanel.OffsetLeft = -280f; _portalPanel.OffsetRight = 280f;
+            _portalPanel.OffsetTop = -220f; _portalPanel.OffsetBottom = 220f;
+            _portalPanel.Visible = false;
+            _root.AddChild(_portalPanel);
+
+            var scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+            _portalPanel.AddChild(scroll);
+            _portalBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.Fill };
+            _portalBox.AddThemeConstantOverride("separation", 8);
+            scroll.AddChild(_portalBox);
+        }
+
+        private void RefreshPortalPanel()
+        {
+            if (_portalBox == null || _world == null) return;
+            for (int i = _portalBox.GetChildCount() - 1; i >= 0; i--)
+                _portalBox.GetChild(i).QueueFree();
+
+            _portalBox.AddChild(Fonts2D.Label(Loc.T("ui.portal.xfer.title"), 16, new Color(0.8f, 0.5f, 1f)));
+            var hint = Fonts2D.Label(Loc.T("ui.portal.xfer.hint"), 11, new Color(0.65f, 0.7f, 0.75f));
+            hint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+            hint.SizeFlagsHorizontal = Control.SizeFlags.Fill;
+            _portalBox.AddChild(hint);
+            _portalBox.AddChild(new HSeparator());
+
+            var planetRow = new HBoxContainer();
+            planetRow.AddThemeConstantOverride("separation", 6);
+            planetRow.AddChild(Fonts2D.Label(Loc.T("ui.portal.xfer.target"), 13, new Color(0.8f, 0.7f, 0.9f)));
+            _portalPlanetBtn = new OptionButton();
+            _portalPlanetBtn.CustomMinimumSize = new Vector2(180, 30);
+            for (int i = 0; i < Planets.All.Length; i++)
+            {
+                if (i == _world.PlanetIndex) continue;
+                if (!_world.IsUnlocked(i)) continue;
+                _portalPlanetBtn.AddItem(Loc.Planet(Planets.All[i]), i);
+            }
+            planetRow.AddChild(_portalPlanetBtn);
+            _portalBox.AddChild(planetRow);
+
+            var itemRow = new HBoxContainer();
+            itemRow.AddThemeConstantOverride("separation", 6);
+            itemRow.AddChild(Fonts2D.Label(Loc.T("ui.market.stock"), 13, new Color(0.8f, 0.7f, 0.9f)));
+            _portalItemBtn = new OptionButton();
+            _portalItemBtn.CustomMinimumSize = new Vector2(180, 30);
+            for (int i = 1; i < GameData.ItemSlots; i++)
+            {
+                var item = (ItemId)i;
+                int stock = _world.Hub[i];
+                if (stock <= 0) continue;
+                _portalItemBtn.AddItem(Loc.Item(item) + " (" + stock + ")", i);
+            }
+            itemRow.AddChild(_portalItemBtn);
+            _portalBox.AddChild(itemRow);
+
+            var countRow = new HBoxContainer();
+            countRow.AddThemeConstantOverride("separation", 6);
+            countRow.AddChild(Fonts2D.Label("Count", 13, new Color(0.8f, 0.7f, 0.9f)));
+            _portalCountSpin = new SpinBox();
+            _portalCountSpin.MinValue = 1;
+            _portalCountSpin.MaxValue = 9999;
+            _portalCountSpin.Value = 1;
+            _portalCountSpin.CustomMinimumSize = new Vector2(100, 30);
+            countRow.AddChild(_portalCountSpin);
+            _portalBox.AddChild(countRow);
+
+            var sendBtn = new Button();
+            sendBtn.Text = Loc.T("ui.portal.xfer.send");
+            sendBtn.CustomMinimumSize = new Vector2(140, 36);
+            sendBtn.AddThemeFontOverride("font", Fonts2D.Small);
+            sendBtn.Pressed += () =>
+            {
+                if (_portalPlanetBtn.Selected < 0 || _portalItemBtn.Selected < 0) { Toast("select item"); return; }
+                int targetPlanet = _portalPlanetBtn.GetSelectedId();
+                int itemIdx = _portalItemBtn.GetSelectedId();
+                int count = (int)_portalCountSpin.Value;
+                var item = (ItemId)itemIdx;
+                if (_world.TransferHubItems(item, count, targetPlanet, out string err))
+                {
+                    PlaySfx?.Invoke("click");
+                    Toast(string.Format(Loc.T("ui.portal.xfer.ok"), Loc.Item(item), count));
+                    RefreshPortalPanel();
+                }
+                else Toast(Loc.T(err));
+            };
+            _portalBox.AddChild(sendBtn);
+        }
+
         private void BuildLivePanel()
         {
             _livePanel = new PanelContainer();
@@ -1327,6 +1603,9 @@ namespace CoreFactory.View2D
             _sellPanel.Visible = false;
             _livePanel.Visible = false;
             _planetPanel.Visible = false;
+            _achPanel.Visible = false;
+            _techPanel.Visible = false;
+            _portalPanel.Visible = false;
         }
 
         private void OpenExclusive(PanelContainer p)
@@ -1351,12 +1630,28 @@ namespace CoreFactory.View2D
             OpenExclusive(_planetPanel);
             if (_planetPanel.Visible) RefreshPlanetList();
         }
+        public void ToggleAch()
+        {
+            OpenExclusive(_achPanel);
+            if (_achPanel.Visible) RefreshAchPanel();
+        }
+        public void ToggleTech()
+        {
+            OpenExclusive(_techPanel);
+            if (_techPanel.Visible) RefreshTechPanel();
+        }
+        public void TogglePortal()
+        {
+            OpenExclusive(_portalPanel);
+            if (_portalPanel.Visible) RefreshPortalPanel();
+        }
         /// <summary>外部（例如解鎖成功後）強制重建星球清單。</summary>
         public void RefreshPlanet() { if (_planetPanel.Visible) RefreshPlanetList(); }
         public void ToggleMinimap() => _minimap.Visible = !_minimap.Visible;   // 角落覆蓋層，不互斥
         public bool SettingsOpen => _settingsPanel.Visible;
         public bool ModalOpen => _settingsPanel.Visible || _helpPanel.Visible || _sellPanel.Visible
-                                 || _livePanel.Visible
+                                 || _livePanel.Visible || _achPanel.Visible || _techPanel.Visible
+                                 || _portalPanel.Visible
                                  || _planetPanel.Visible || _titlePanel.Visible || _defeatPanel.Visible
                                  || (_wavePanel != null && _wavePanel.Visible);
         public void SetUiHidden(bool h) { UiHidden = h; _root.Visible = !h; }

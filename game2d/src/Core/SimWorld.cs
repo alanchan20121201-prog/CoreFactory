@@ -14,7 +14,7 @@ namespace CoreFactory.Core
 {
     public sealed partial class SimWorld
     {
-        public const int SaveVersion = 10;
+        public const int SaveVersion = 11;
 
         public int Seed { get; private set; }
         public int PlanetIndex { get; private set; }
@@ -54,11 +54,46 @@ namespace CoreFactory.Core
 
         // ── 無限研究（消耗科研包，永久強化） ────────────────────
         public readonly int[] Research = new int[4];   // 0 傳送帶速度 1 機器速度 2 採礦速度 3 發電量
-        public float BeltSpeedMultiplier => 1f + Research[0] * 0.06f;
-        public float MachineSpeedMultiplier => 1f + Research[1] * 0.06f;
-        public float MinerSpeedMultiplier => 1f + Research[2] * 0.06f;
-        public float PowerMultiplier => 1f + Research[3] * 0.06f;
+        public float BeltSpeedMultiplier => (1f + Research[0] * 0.06f) * (1f + _techBelt * 0.08f);
+        public float MachineSpeedMultiplier => (1f + Research[1] * 0.06f) * (1f + _techMachine * 0.10f);
+        public float MinerSpeedMultiplier => (1f + Research[2] * 0.06f) * (1f + _techMining * 0.12f);
+        public float PowerMultiplier => (1f + Research[3] * 0.06f) * (1f + _techPower * 0.15f);
         public int ResearchCost(int i) => (int)(20f * MathF.Pow(1.6f, Research[i]));
+
+        // ── 科技树（4 线 × 5 节点） ─────────────────────────────
+        private ulong _techMask;                         // 20 位，bit i = 节点 i 已解锁
+        private int _techBelt, _techMachine, _techMining, _techPower;  // 各线已解锁节点数
+        public int TechNodesUnlocked => _techBelt + _techMachine + _techMining + _techPower;
+        public bool IsTechUnlocked(int nodeId) => (_techMask & (1UL << nodeId)) != 0;
+        public int TechCountInLine(TechLine line) => line switch
+        {
+            TechLine.Belt => _techBelt, TechLine.Machine => _techMachine,
+            TechLine.Mining => _techMining, TechLine.Power => _techPower, _ => 0,
+        };
+        public void UnlockTechNode(int nodeId)
+        {
+            if (nodeId < 0 || nodeId >= 20 || IsTechUnlocked(nodeId)) return;
+            _techMask |= 1UL << nodeId;
+            switch (TechTree.Nodes[nodeId].Line)
+            {
+                case TechLine.Belt: _techBelt++; break;
+                case TechLine.Machine: _techMachine++; break;
+                case TechLine.Mining: _techMining++; break;
+                case TechLine.Power: _techPower++; break;
+            }
+            Alert("tech:" + nodeId);
+        }
+
+        // ── 成就系统 ────────────────────────────────────────────
+        private readonly bool[] _achUnlocked = new bool[Achievements.Count];
+        public int AchUnlockedCount
+        {
+            get { int n = 0; for (int i = 0; i < _achUnlocked.Length; i++) if (_achUnlocked[i]) n++; return n; }
+        }
+        public bool IsAchUnlocked(int id) => id >= 0 && id < _achUnlocked.Length && _achUnlocked[id];
+
+        // ── 跨星球物品传送门 ────────────────────────────────────
+        public int ItemsTransferred;                     // 累计跨星球传输物品数（成就用）
 
         // ── 工廠體檢（每 15 tick 統計一次） ─────────────────────
         public readonly int[] MachineTotal = new int[16];
@@ -526,6 +561,65 @@ namespace CoreFactory.Core
             AlienTick(dt);
             WaveTick(dt);
             if ((TickCount % 15) == 0) StatsTick();
+            TickAchievements();
+        }
+
+        // ── 成就检测（每 tick 调用） ────────────────────────────
+        private void TickAchievements()
+        {
+            for (int i = 0; i < Achievements.All.Length; i++)
+            {
+                if (_achUnlocked[i]) continue;
+                var a = Achievements.All[i];
+                if (a.Progress(this) >= a.Target)
+                {
+                    _achUnlocked[i] = true;
+                    Alert("ach:" + i);
+                }
+            }
+        }
+
+        // ── 跨星球物品传送门 ────────────────────────────────────
+        /// <summary>
+        /// 跨星球传送 Hub 物品到目标星球（下次前往时通过 carry 获得）。
+        /// 要求：目标星球已解锁，物品数量合法。
+        /// </summary>
+        public bool TransferHubItems(ItemId item, int count, int targetPlanet, out string err)
+        {
+            err = "";
+            if (targetPlanet < 0 || targetPlanet >= Planets.All.Length) { err = "portal.bad"; return false; }
+            if (targetPlanet == PlanetIndex) { err = "portal.same"; return false; }
+            if (!IsUnlocked(targetPlanet)) { err = "portal.locked"; return false; }
+            if (count <= 0) { err = "portal.zero"; return false; }
+            if (Hub[(int)item] < count) { err = "portal.not_enough"; return false; }
+
+            Hub[(int)item] -= count;
+            ItemsTransferred += count;
+            // 传输到目标星球的「暂存仓」，下次 Travel 时自动放入 Hub
+            if (!_portalStash.ContainsKey(targetPlanet))
+                _portalStash[targetPlanet] = new int[GameData.ItemSlots];
+            _portalStash[targetPlanet][(int)item] += count;
+            Alert("portal:transfer:" + (int)item + ":" + count + ":" + targetPlanet);
+            return true;
+        }
+
+        // 传送门暂存仓：每个星球一个数组，Travel 时合并到新 Hub
+        private readonly Dictionary<int, int[]> _portalStash = new();
+
+        /// <summary>取得某星球暂存仓（Travel 时合并到新 Hub）。</summary>
+        public int[] GetPortalStash(int planetIndex)
+        {
+            return _portalStash.TryGetValue(planetIndex, out var arr) ? arr : new int[GameData.ItemSlots];
+        }
+
+        /// <summary>合并暂存仓到 Hub（Travel 后调用）。</summary>
+        public void MergePortalStash(int planetIndex)
+        {
+            if (!_portalStash.TryGetValue(planetIndex, out var stash)) return;
+            for (int i = 0; i < GameData.ItemSlots; i++)
+            {
+                if (stash[i] > 0) { Hub[i] += stash[i]; stash[i] = 0; }
+            }
         }
 
         private void StatsTick()
@@ -1186,6 +1280,51 @@ namespace CoreFactory.Core
             foreach (var a in Aliens) { w.Write(a.X); w.Write(a.Z); w.Write(a.Hp); w.Write(a.Damage); w.Write(a.Speed); w.Write((byte)a.Kind); }
 
             SaveLiveSystems(w);                                            // v10 市場 / 委託 / 世界事件
+            SaveAchievementsTechPortal(w);                                 // v11 成就 / 科技樹 / 傳送門暫存倉
+        }
+
+        // ── v11 存档段：成就 / 科技樹 / 傳送門暫存倉 ──────────
+        private void SaveAchievementsTechPortal(BinaryWriter w)
+        {
+            // 成就（20 位 bool）
+            for (int i = 0; i < Achievements.Count; i++) w.Write(_achUnlocked[i]);
+            // 科技树（20 位 ulong + 各线计数）
+            w.Write(_techMask);
+            w.Write(_techBelt); w.Write(_techMachine); w.Write(_techMining); w.Write(_techPower);
+            // 传送门暂存仓（每星球 24 槽）
+            w.Write(_portalStash.Count);
+            foreach (var kv in _portalStash)
+            {
+                w.Write(kv.Key);
+                for (int i = 0; i < GameData.ItemSlots; i++) w.Write(kv.Value[i]);
+            }
+            w.Write(ItemsTransferred);
+        }
+
+        private void LoadAchievementsTechPortal(BinaryReader r, int version)
+        {
+            if (version < 11)
+            {
+                Array.Clear(_achUnlocked);
+                _techMask = 0; _techBelt = _techMachine = _techMining = _techPower = 0;
+                _portalStash.Clear();
+                ItemsTransferred = 0;
+                return;
+            }
+            for (int i = 0; i < Achievements.Count; i++) _achUnlocked[i] = r.ReadBoolean();
+            _techMask = r.ReadUInt64();
+            _techBelt = r.ReadInt32(); _techMachine = r.ReadInt32();
+            _techMining = r.ReadInt32(); _techPower = r.ReadInt32();
+            _portalStash.Clear();
+            int pcount = r.ReadInt32();
+            for (int i = 0; i < pcount; i++)
+            {
+                int pid = r.ReadInt32();
+                var arr = new int[GameData.ItemSlots];
+                for (int j = 0; j < GameData.ItemSlots; j++) arr[j] = r.ReadInt32();
+                _portalStash[pid] = arr;
+            }
+            ItemsTransferred = r.ReadInt32();
         }
 
         public bool LoadFrom(string path, out string error)
@@ -1201,6 +1340,10 @@ namespace CoreFactory.Core
                 // 清空目前狀態
                 Buildings.Clear(); Belts.Clear(); Aliens.Clear();
                 ItemCount = 0; _freeCount = 0; _itemHigh = 0; Alerts.Clear();
+                Array.Clear(_achUnlocked);
+                _techMask = 0; _techBelt = _techMachine = _techMining = _techPower = 0;
+                _portalStash.Clear();
+                ItemsTransferred = 0;
 
                 Seed = r.ReadInt32();
                 PlanetIndex = r.ReadInt32();
@@ -1290,6 +1433,7 @@ namespace CoreFactory.Core
                     }
                 }
                 LoadLiveSystems(r, version);
+                LoadAchievementsTechPortal(r, version);
                 Alert("ui.loaded");
                 return true;
             }

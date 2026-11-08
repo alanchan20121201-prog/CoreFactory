@@ -26,6 +26,9 @@ namespace CoreFactory.View2D
             T7_PlanetsAndPortals();
             T8_WithdrawAndWaveConfirm();
             T9_LiveSystems();
+            T10_Achievements();
+            T11_TechTree();
+            T12_PortalTransfer();
 
             GD.Print($"[selftest] done, fail={_fail}");
             return _fail;
@@ -514,6 +517,123 @@ namespace CoreFactory.View2D
                 (dec ? "" : " (" + berr + ")"));
 
             try { File.Delete(path); } catch { /* 清不掉就算了 */ }
+        }
+        // ── T10：成就系统 ─────────────────────────────────────────
+        private static void T10_Achievements()
+        {
+            var w = new SimWorld(555, 0);
+            for (int i = 0; i < 30; i++) w.Tick(1f / 60f);
+
+            // 建造一棟建築 → 解鎖「第一步」
+            var b = new Building { Kind = BuildingKind.Miner, X = 5, Z = 5 };
+            w.Buildings[SimWorld.Key(5, 5)] = b;
+            for (int i = 0; i < 30; i++) w.Tick(1f / 60f);
+            Check(w.IsAchUnlocked(0), "T10a first building achievement unlocks");
+
+            // 建造到 20 棟 → 解鎖「小型基地」
+            for (int i = 0; i < 25; i++)
+            {
+                int x = 10 + i, z = 10;
+                w.Buildings[SimWorld.Key(x, z)] = new Building { Kind = BuildingKind.Belt, X = x, Z = z };
+            }
+            for (int i = 0; i < 30; i++) w.Tick(1f / 60f);
+            Check(w.IsAchUnlocked(1), "T10b 20 buildings achievement unlocks");
+
+            // 賣出物品 → 解鎖「商人」
+            w.Hub[(int)ItemId.IronPlate] = 2000;
+            w.Sell(ItemId.IronPlate, 1000);
+            for (int i = 0; i < 30; i++) w.Tick(1f / 60f);
+            Check(w.IsAchUnlocked(6), "T10c 1000 sold achievement unlocks");
+
+            // v11 存檔往返：成就保留
+            string path = Path.Combine(Path.GetTempPath(), "cf2d_selftest_ach.bin");
+            w.SaveTo(path);
+            var back = new SimWorld(1, 0);
+            bool ok = back.LoadFrom(path, out string err);
+            Check(ok, "T10d v11 save/load ok" + (ok ? "" : " (" + err + ")"));
+            if (ok)
+            {
+                Check(back.IsAchUnlocked(0), "T10e ach 0 survives save");
+                Check(back.IsAchUnlocked(6), "T10f ach 6 survives save");
+                Check(back.AchUnlockedCount >= 3, "T10g ach count survives save");
+            }
+            try { File.Delete(path); } catch { }
+        }
+
+        // ── T11：科技树 ─────────────────────────────────────────
+        private static void T11_TechTree()
+        {
+            var w = new SimWorld(777, 0);
+            for (int i = 0; i < 30; i++) w.Tick(1f / 60f);
+
+            // 给足够科研包，解锁第一个节点
+            w.Hub[(int)ItemId.Science] = 200;
+            bool ok = TechTree.TryUnlock(w, 0, out string err);
+            Check(ok, "T11a unlock first tech node" + (ok ? "" : " (" + err + ")"));
+            Check(w.IsTechUnlocked(0), "T11b tech node 0 is unlocked");
+
+            // 科技树效果应加到倍率（BeltSpeedMultiplier 比 Research[0]=0 时更大）
+            float before = 1f; // Research all 0 → base 1.0
+            float after = w.BeltSpeedMultiplier;
+            Check(after > before, $"T11c tech tree boosts belt speed ({before} -> {after})");
+
+            // 尝试解锁已解锁的节点 → 失败
+            bool ok2 = TechTree.TryUnlock(w, 0, out _);
+            Check(!ok2, "T11d cannot unlock same node twice");
+
+            // v11 存檔往返：科技树保留
+            string path = Path.Combine(Path.GetTempPath(), "cf2d_selftest_tech.bin");
+            w.SaveTo(path);
+            var back = new SimWorld(1, 0);
+            bool okLoad = back.LoadFrom(path, out string lerr);
+            Check(okLoad, "T11e v11 save/load ok" + (okLoad ? "" : " (" + lerr + ")"));
+            if (okLoad)
+            {
+                Check(back.IsTechUnlocked(0), "T11f tech node 0 survives save");
+                Check(back.TechNodesUnlocked == w.TechNodesUnlocked, "T11g tech count survives save");
+            }
+            try { File.Delete(path); } catch { }
+        }
+
+        // ── T12：跨星球传送门 ─────────────────────────────────────
+        private static void T12_PortalTransfer()
+        {
+            var w = new SimWorld(888, 0);
+            for (int i = 0; i < 30; i++) w.Tick(1f / 60f);
+
+            // 解锁第二颗星球（需要钱）
+            w.Coins = 100000;
+            bool unlocked = w.TryUnlockPortal(1, out string uerr);
+            Check(unlocked, "T12a unlock second planet" + (unlocked ? "" : " (" + uerr + ")"));
+
+            // 传送物品到第二颗星球
+            w.Hub[(int)ItemId.IronPlate] = 50;
+            bool ok = w.TransferHubItems(ItemId.IronPlate, 30, 1, out string err);
+            Check(ok, "T12b transfer items to planet 2" + (ok ? "" : " (" + err + ")"));
+            Check(w.Hub[(int)ItemId.IronPlate] == 20, "T12c items deducted from hub");
+            Check(w.ItemsTransferred == 30, "T12d transfer counter incremented");
+
+            // 尝试传送到当前星球 → 失败
+            bool ok2 = w.TransferHubItems(ItemId.IronPlate, 1, 0, out _);
+            Check(!ok2, "T12e cannot transfer to current planet");
+
+            // 尝试传送到未解锁星球 → 失败
+            bool ok3 = w.TransferHubItems(ItemId.IronPlate, 1, 4, out _);
+            Check(!ok3, "T12f cannot transfer to locked planet");
+
+            // v11 存檔往返：传送门暂存仓保留
+            string path = Path.Combine(Path.GetTempPath(), "cf2d_selftest_portal.bin");
+            w.SaveTo(path);
+            var back = new SimWorld(1, 0);
+            bool okLoad = back.LoadFrom(path, out string lerr);
+            Check(okLoad, "T12g v11 save/load ok" + (okLoad ? "" : " (" + lerr + ")"));
+            if (okLoad)
+            {
+                Check(back.ItemsTransferred == 30, "T12h transfer counter survives save");
+                var stash = back.GetPortalStash(1);
+                Check(stash[(int)ItemId.IronPlate] == 30, "T12i portal stash survives save");
+            }
+            try { File.Delete(path); } catch { }
         }
     }
 }
